@@ -335,6 +335,15 @@ spec = do
           withManInTheMiddleNixDaemon
           SpecFlavor_MITM
 
+  describe "runStoreConnectionWithVersion" $
+    Test.Hspec.it "offers the given version in the handshake" $
+      withNixDaemon' $ \_tmpPath _storeDir storeConn -> do
+        let offeredVersion = ProtoVersion 1 37 mempty
+        (negotiatedVersion, _logs) <-
+          runStoreConnectionWithVersion offeredVersion storeConn getProtoVersion
+        either (Left . show) Right negotiatedVersion
+          `shouldBe` (Right offeredVersion :: Either String ProtoVersion)
+
 data SpecFlavor
   = SpecFlavor_Direct
   | SpecFlavor_MITM

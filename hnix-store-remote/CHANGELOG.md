@@ -1,5 +1,8 @@
 # [next](https://github.com/haskell-nix/hnix-store/compare/remote-0.8.0.0...master) 2026-MM-DD
 
+* Additions:
+   * `runStoreConnectionWithVersion` and `runStoreSocketWithVersion`, which offer the given protocol version and features in the handshake, such as `builderRpcV0`
+
 * Changes:
    * `buildDerivation` reads derivations whose inputs are outputs of dynamic derivations
 

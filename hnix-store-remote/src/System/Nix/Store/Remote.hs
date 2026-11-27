@@ -11,7 +11,9 @@ module System.Nix.Store.Remote
   -- * Runners
   , runStore
   , runStoreConnection
+  , runStoreConnectionWithVersion
   , runStoreSocket
+  , runStoreSocketWithVersion
   -- ** Daemon
   , runDaemon
   , runDaemonConnection
@@ -63,11 +65,23 @@ runStoreConnection
   => StoreConnection
   -> RemoteStoreT m a
   -> Run m a
-runStoreConnection sc k =
+runStoreConnection = runStoreConnectionWithVersion def
+
+-- | Like 'runStoreConnection', but offers the given protocol version
+-- and features in the handshake, such as 'builderRpcV0'
+runStoreConnectionWithVersion
+  :: ( MonadIO m
+     , MonadMask m
+     )
+  => ProtoVersion
+  -> StoreConnection
+  -> RemoteStoreT m a
+  -> Run m a
+runStoreConnectionWithVersion offeredVersion sc k =
   connectionToSocket sc
   >>= \case
     Left e -> pure (Left e, mempty)
-    Right (fam, sock) -> runStoreSocket fam sock k
+    Right (fam, sock) -> runStoreSocketWithVersion offeredVersion fam sock k
 
 runStoreSocket
   :: ( MonadIO m
@@ -77,11 +91,24 @@ runStoreSocket
   -> SockAddr
   -> RemoteStoreT m a
   -> Run m a
-runStoreSocket sockFamily sockAddr code =
+runStoreSocket = runStoreSocketWithVersion def
+
+-- | Like 'runStoreSocket', but offers the given protocol version and
+-- features in the handshake, such as 'builderRpcV0'
+runStoreSocketWithVersion
+  :: ( MonadIO m
+     , MonadMask m
+     )
+  => ProtoVersion
+  -> Family
+  -> SockAddr
+  -> RemoteStoreT m a
+  -> Run m a
+runStoreSocketWithVersion offeredVersion sockFamily sockAddr code =
   Control.Monad.Catch.bracket
     (liftIO open)
     (liftIO . Network.Socket.close . hasStoreSocket)
-    (\s -> runRemoteStoreT s $ greetServer >> code)
+    (\s -> runRemoteStoreT s $ setProtoVersion offeredVersion >> greetServer >> code)
   where
     open = do
       soc <-
