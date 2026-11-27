@@ -31,6 +31,7 @@ import System.Nix.Store.Remote.Types.Query.Missing (Missing)
 import System.Nix.Store.Remote.Types.StoreText (StoreText)
 import System.Nix.Store.Remote.Types.SubstituteMode (SubstituteMode)
 import System.Nix.Store.Remote.Types.SuccessCodeReply (SuccessCodeReply)
+import System.Posix.ByteString (RawFilePath)
 
 data StoreRequest :: Type -> Type where
   -- | Add @NarSource@ to the store.
@@ -77,8 +78,11 @@ data StoreRequest :: Type -> Type where
     -> Set Signature
     -> StoreRequest SuccessCodeReply
 
+  -- | Add the symlink at the given absolute path, which points into
+  -- the store, as an indirect garbage collector root. Its target stays
+  -- alive while the link points at it.
   AddIndirectRoot
-    :: StorePath
+    :: RawFilePath
     -> StoreRequest SuccessCodeReply
 
   -- | Add temporary garbage collector root.

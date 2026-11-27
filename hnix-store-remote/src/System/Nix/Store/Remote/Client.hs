@@ -6,6 +6,7 @@ module System.Nix.Store.Remote.Client
   , addSignatures
   , addTempRoot
   , addIndirectRoot
+  , addPermRoot
   , buildPaths
   , buildDerivation
   , collectGarbage
@@ -30,7 +31,8 @@ module System.Nix.Store.Remote.Client
   , module System.Nix.Store.Remote.Client.Core
   ) where
 
-import Control.Monad (void, when)
+import Control.Exception (tryJust)
+import Control.Monad (guard, unless, void, when)
 import Control.Monad.Except (throwError)
 import Data.ByteString (ByteString)
 import Data.HashSet (HashSet)
@@ -63,9 +65,19 @@ import System.Nix.Store.Types (RepairMode(..))
 
 import Control.Monad.IO.Class qualified
 import Data.Attoparsec.Text qualified
+import Data.ByteString qualified
+import Data.ByteString.Char8 qualified
+import Data.List qualified
 import Data.Text.IO qualified
+import GHC.Foreign qualified
+import GHC.IO.Encoding qualified
+import System.FilePath qualified
+import System.IO.Error qualified
 import System.Nix.Derivation qualified
 import System.Nix.StorePath qualified
+import System.Posix.ByteString (RawFilePath)
+import System.Posix.Directory qualified
+import System.Posix.Files qualified
 
 -- | Add `NarSource` to the store
 addToStore
@@ -147,12 +159,80 @@ addTempRoot
   -> m ()
 addTempRoot = void . doReq . AddTempRoot
 
--- | Add indirect garbage collector root.
+-- | Add the symlink at the given absolute path, which points into the
+-- store, as an indirect garbage collector root. Its target stays alive
+-- while the link points at it. 'addPermRoot' also makes the link.
 addIndirectRoot
   :: MonadRemoteStore m
-  => StorePath
+  => RawFilePath
   -> m ()
 addIndirectRoot = void . doReq . AddIndirectRoot
+
+-- | Point the symlink at the given path to the store path and add it as
+-- an indirect garbage collector root, as Nix's
+-- @IndirectRootStore::addPermRoot@ does. Returns the link's absolute
+-- path. Fails when the path is in the store, or is a file other than a
+-- symlink into the store.
+addPermRoot
+  :: MonadRemoteStore m
+  => StorePath
+  -> FilePath
+  -> m FilePath
+addPermRoot storePath link = do
+  storeDir <- getStoreDir
+  let storeDirPath = Data.ByteString.Char8.unpack (System.Nix.StorePath.unStoreDir storeDir)
+      isInStore path = (storeDirPath <> "/") `Data.List.isPrefixOf` path
+  gcRoot <- Control.Monad.IO.Class.liftIO $ absolutePath link
+  when (isInStore gcRoot) $
+    throwError $ RemoteStoreError_GCRootInStore gcRoot
+
+  addTempRoot storePath
+
+  existingFile <-
+    Control.Monad.IO.Class.liftIO
+    $ tryJust (guard . System.IO.Error.isDoesNotExistError)
+    $ System.Posix.Files.getSymbolicLinkStatus gcRoot
+  case existingFile of
+    Left () -> pure ()
+    Right status -> do
+      linksIntoStore <-
+        if System.Posix.Files.isSymbolicLink status
+        then isInStore <$> Control.Monad.IO.Class.liftIO (System.Posix.Files.readSymbolicLink gcRoot)
+        else pure False
+      unless linksIntoStore $
+        throwError $ RemoteStoreError_GCRootExists gcRoot
+
+  Control.Monad.IO.Class.liftIO
+    $ replaceSymbolicLink
+        (System.Nix.StorePath.storePathToFilePath storeDir storePath)
+        gcRoot
+  addIndirectRoot =<< Control.Monad.IO.Class.liftIO (encodeFilePath gcRoot)
+  pure gcRoot
+ where
+  absolutePath path =
+    System.FilePath.normalise
+    . (System.FilePath.</> path)
+    <$> System.Posix.Directory.getWorkingDirectory
+
+  -- The daemon reads the path as bytes.
+  encodeFilePath path = do
+    encoding <- GHC.IO.Encoding.getFileSystemEncoding
+    GHC.Foreign.withCStringLen encoding path Data.ByteString.packCStringLen
+
+  -- Make the link next to its final path and rename it into place, so
+  -- that the path always names a link, as Nix's @replaceSymlink@ does.
+  replaceSymbolicLink target path = go (0 :: Int)
+   where
+    go attempt = do
+      let temporaryLink =
+            System.FilePath.takeDirectory path
+            System.FilePath.</> ("." <> show attempt <> "_" <> System.FilePath.takeFileName path)
+      created <-
+        tryJust (guard . System.IO.Error.isAlreadyExistsError)
+        $ System.Posix.Files.createSymbolicLink target temporaryLink
+      case created of
+        Left () -> go (attempt + 1)
+        Right () -> System.Posix.Files.rename temporaryLink path
 
 -- | Build a derivation available at @StorePath@
 buildDerivation

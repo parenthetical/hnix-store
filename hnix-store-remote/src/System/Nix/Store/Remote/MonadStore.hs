@@ -65,6 +65,8 @@ data RemoteStoreError
   | RemoteStoreError_DerivationParse String
   | RemoteStoreError_Disconnected
   | RemoteStoreError_GetAddrInfoFailed
+  | RemoteStoreError_GCRootInStore FilePath -- ^ @addPermRoot@ was given a path in the store
+  | RemoteStoreError_GCRootExists FilePath -- ^ @addPermRoot@ was given a path that is a file other than a symlink into the store
   | RemoteStoreError_GenericIncrementalLeftovers String ByteString -- when there are bytes left over after genericIncremental parser is done, (Done x leftover), first param is show x
   | RemoteStoreError_GenericIncrementalFail String ByteString -- when genericIncremental parser returns ((Fail msg leftover) :: Result)
   | RemoteStoreError_SerializerGet SError

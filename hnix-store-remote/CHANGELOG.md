@@ -2,9 +2,11 @@
 
 * Additions:
    * `runStoreConnectionWithVersion` and `runStoreSocketWithVersion`, which offer the given protocol version and features in the handshake, such as `builderRpcV0`
+   * `addPermRoot`, which points a symlink at a store path and adds it as an indirect garbage collector root, as Nix's `IndirectRootStore::addPermRoot` does, with the errors `RemoteStoreError_GCRootInStore` and `RemoteStoreError_GCRootExists`
 
 * Changes:
    * `buildDerivation` reads derivations whose inputs are outputs of dynamic derivations
+   * `addIndirectRoot` and `AddIndirectRoot` take the absolute path of the symlink, as a `RawFilePath`, as Nix does, instead of a `StorePath`
 
 # [0.8.0.0](https://github.com/haskell-nix/hnix-store/compare/remote-0.7.0.0...remote-0.8.0.0) 2026-10-21
 

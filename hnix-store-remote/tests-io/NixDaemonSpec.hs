@@ -408,8 +408,17 @@ makeProtoSpec f flavor = around f $ do
   context "addTempRoot" $
     itRights "simple addition" $ withPath addTempRoot
 
-  context "addIndirectRoot" $
-    itRights "simple addition" $ withPath addIndirectRoot
+  context "addPermRoot" $ do
+    itRights "links the path and adds the link as a root" $ withPath $ \path -> do
+      root <- addPermRoot path "permanent-root"
+      rawRoot <- liftIO $ Data.ByteString.Char8.pack <$> System.Directory.makeAbsolute "permanent-root"
+      Data.ByteString.Char8.pack root `shouldBe` rawRoot
+      roots <- findRoots
+      Data.Map.lookup (GCRoot_Path rawRoot) roots `shouldBe` Just path
+
+    itLefts "refuses to replace a file" $ withPath $ \path -> do
+      liftIO $ writeFile "not-a-link" ""
+      addPermRoot path "not-a-link"
 
   let toDerivedPathSet p = Data.Set.fromList [DerivedPath_Opaque p]
 
@@ -439,7 +448,7 @@ makeProtoSpec f flavor = around f $ do
             if flavor == SpecFlavor_MITM
             then 1 -- nested client closes its connection so temp root gets removed
             else 2
-      addIndirectRoot path
+      _ <- addPermRoot path "indirect-root"
       roots <- findRoots
       roots `shouldSatisfy` ((== expectRoots) . Data.Map.size)
 

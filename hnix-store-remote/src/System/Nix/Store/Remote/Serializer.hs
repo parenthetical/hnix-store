@@ -1105,7 +1105,7 @@ storeRequest storeDir _pv = Serializer
         pure $ Some (AddSignatures path signatures)
 
       WorkerOp_AddIndirectRoot -> mapGetE $ do
-        Some . AddIndirectRoot <$> getS (storePath storeDir)
+        Some . AddIndirectRoot <$> getS byteString
 
       WorkerOp_AddTempRoot -> mapGetE $ do
         Some . AddTempRoot <$> getS (storePath storeDir)
@@ -1262,7 +1262,7 @@ storeRequest storeDir _pv = Serializer
 
       Some (AddIndirectRoot path) -> do
         putS workerOp WorkerOp_AddIndirectRoot
-        putS (storePath storeDir) path
+        putS byteString path
 
       Some (AddTempRoot path) -> do
         putS workerOp WorkerOp_AddTempRoot
