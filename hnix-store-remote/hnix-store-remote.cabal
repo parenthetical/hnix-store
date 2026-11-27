@@ -176,6 +176,7 @@ test-suite remote
       Data.SerializerSpec
       EnumSpec
       NixSerializerSpec
+      StoreConnectionSpec
   build-tool-depends:
     hspec-discover:hspec-discover
   build-depends:

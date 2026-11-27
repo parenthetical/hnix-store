@@ -8,6 +8,10 @@ module System.Nix.Store.Remote
   , module System.Nix.Store.Remote.Types
   -- * Compat
   , MonadStore
+  -- * Daemon connections
+  , defaultStoreSocketPath
+  , parseStoreConnection
+  , storeConnectionFromEnvironment
   -- * Runners
   , runStore
   , runStoreConnection
@@ -36,7 +40,11 @@ import System.Nix.Store.Remote.Server (WorkerHelper, runProxyDaemon)
 import System.Nix.Store.Remote.Types
 
 import Control.Monad.Catch qualified
+import Data.Text (Text)
+import Data.Text qualified
 import Network.Socket qualified
+import System.Environment qualified
+import System.FilePath qualified
 -- see TODO bellow
 --import System.Directory qualified
 
@@ -47,6 +55,54 @@ import System.Nix.StorePath qualified
 -- * Compat
 
 type MonadStore = RemoteStoreT IO
+
+-- * Daemon connections
+
+-- | The daemon's socket: @NIX_DAEMON_SOCKET_PATH@, or else
+-- @daemon-socket/socket@ in @NIX_STATE_DIR@, which is @/nix/var/nix@ by
+-- default, as Nix's @getDaemonSocketPath@ finds it.
+defaultStoreSocketPath :: IO StoreSocketPath
+defaultStoreSocketPath = do
+  socketPath <- nonEmptyEnvironmentVariable "NIX_DAEMON_SOCKET_PATH"
+  stateDirectory <- nonEmptyEnvironmentVariable "NIX_STATE_DIR"
+  pure $ StoreSocketPath $ case socketPath of
+    Just path -> path
+    Nothing ->
+      maybe "/nix/var/nix" id stateDirectory
+      System.FilePath.</> "daemon-socket"
+      System.FilePath.</> "socket"
+ where
+  nonEmptyEnvironmentVariable name =
+    (\case
+      Just value | not (null value) -> Just value
+      _ -> Nothing)
+    <$> System.Environment.lookupEnv name
+
+-- | The daemon connection that a Nix store URL names. Nix opens an
+-- @auto@ or empty store itself when it can write it, but a client of
+-- this library can only talk to a daemon, so here they always name the
+-- default socket.
+parseStoreConnection
+  :: StoreSocketPath
+  -> Text
+  -> Either String StoreConnection
+parseStoreConnection defaultSocket storeUrl =
+  case Data.Text.breakOn "?" storeUrl of
+    (storeWithoutSettings, _settings)
+      | storeWithoutSettings `elem` ["", "auto", "daemon", "unix://"] ->
+          Right $ StoreConnection_Socket defaultSocket
+      | Just socketPath <- Data.Text.stripPrefix "unix://" storeWithoutSettings ->
+          Right $ StoreConnection_Socket $ StoreSocketPath $ Data.Text.unpack socketPath
+      | otherwise ->
+          Left $ "not a Nix daemon's store: " <> Data.Text.unpack storeUrl
+
+-- | The daemon connection that @NIX_REMOTE@ names, as
+-- 'parseStoreConnection' reads it, with 'defaultStoreSocketPath'.
+storeConnectionFromEnvironment :: IO (Either String StoreConnection)
+storeConnectionFromEnvironment = do
+  defaultSocket <- defaultStoreSocketPath
+  storeUrl <- maybe "" Data.Text.pack <$> System.Environment.lookupEnv "NIX_REMOTE"
+  pure $ parseStoreConnection defaultSocket storeUrl
 
 -- * Runners
 

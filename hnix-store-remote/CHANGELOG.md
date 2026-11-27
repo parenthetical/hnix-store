@@ -2,6 +2,7 @@
 
 * Additions:
    * `runStoreConnectionWithVersion` and `runStoreSocketWithVersion`, which offer the given protocol version and features in the handshake, such as `builderRpcV0`
+   * `defaultStoreSocketPath`, `parseStoreConnection` and `storeConnectionFromEnvironment`, which find the daemon's socket as Nix does: from `NIX_DAEMON_SOCKET_PATH` or `NIX_STATE_DIR`, and from a store URL such as `NIX_REMOTE`'s
    * `addPermRoot`, which points a symlink at a store path and adds it as an indirect garbage collector root, as Nix's `IndirectRootStore::addPermRoot` does, with the errors `RemoteStoreError_GCRootInStore` and `RemoteStoreError_GCRootExists`
 
 * Changes:
