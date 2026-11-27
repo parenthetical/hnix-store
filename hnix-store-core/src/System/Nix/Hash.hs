@@ -20,6 +20,7 @@ module System.Nix.Hash
   , System.Nix.Base.BaseEncoding(..)
   , encodeDigestWith
   , decodeDigestWith
+  , decodeDigestByLength
 
   , algoDigestBuilder
   , digestBuilder
@@ -126,32 +127,39 @@ mkNamedDigest name sriHash =
  where
   mkDigest h =
     textToAlgo name
-    >>= \(Some a) -> has @HashAlgorithm a $ fmap (a :=>) $ decodeGo a h
-  decodeGo :: HashAlgorithm a => HashAlgo a -> Text -> Either String (Digest a)
-  decodeGo a h
-    | size == base16Len = decodeDigestWith Base16 h
-    | size == base32Len = decodeDigestWith NixBase32 h
-    | size == base64Len = decodeDigestWith Base64 h
-    | otherwise =
-        Left
-        $ Data.Text.unpack
-        $ sriHash
-        <> " "
-        <> "is not a valid"
-        <> " "
-        <> name
-        <> " "
-        <> "hash. Its length ("
-        <> Data.Text.pack (show size)
-        <> ") does not match any of"
-        <> " "
-        <> Data.Text.pack (show [base16Len, base32Len, base64Len])
-   where
-    size = Data.Text.length h
-    hsize = Crypto.Hash.hashDigestSize (hashAlgoValue a)
-    base16Len = hsize * 2
-    base32Len = ((hsize * 8 - 1) `div` 5) + 1;
-    base64Len = ((4 * hsize `div` 3) + 3) `div` 4 * 4;
+    >>= \(Some a) -> has @HashAlgorithm a $ fmap (a :=>) $ decodeDigestByLength a h
+
+-- | Decode a digest in base 16, Nix's base 32 or base 64, which its
+-- length tells apart, as Nix's @Hash::parseNonSRIUnprefixed@ does
+decodeDigestByLength
+  :: HashAlgorithm a
+  => HashAlgo a
+  -> Text
+  -> Either String (Digest a)
+decodeDigestByLength a h
+  | size == base16Len = decodeDigestWith Base16 h
+  | size == base32Len = decodeDigestWith NixBase32 h
+  | size == base64Len = decodeDigestWith Base64 h
+  | otherwise =
+      Left
+      $ Data.Text.unpack
+      $ h
+      <> " "
+      <> "is not a valid"
+      <> " "
+      <> algoToText a
+      <> " "
+      <> "hash. Its length ("
+      <> Data.Text.pack (show size)
+      <> ") does not match any of"
+      <> " "
+      <> Data.Text.pack (show [base16Len, base32Len, base64Len])
+ where
+  size = Data.Text.length h
+  hsize = Crypto.Hash.hashDigestSize (hashAlgoValue a)
+  base16Len = hsize * 2
+  base32Len = ((hsize * 8 - 1) `div` 5) + 1;
+  base64Len = ((4 * hsize `div` 3) + 3) `div` 4 * 4;
 
 mkStorePathHash
   :: forall a

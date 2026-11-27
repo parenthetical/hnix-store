@@ -81,7 +81,7 @@ parseRawDerivationOutput storeDir (RawDerivationOutput {..}) = do
     Just (method, Some hashAlgo) -> do
       mHash <- for mHash0 $ \hash0 ->
         either fail pure $ has @NamedAlgo hashAlgo $
-          decodeDigestWith NixBase32 hash0
+          decodeDigestByLength hashAlgo hash0
       pure $ Just (method, hashAlgo :=> Comp1 mHash)
   pure FreeformDerivationOutput { mPath, mContentAddressing }
 
@@ -95,7 +95,7 @@ renderRawDerivationOutput storeDir (FreeformDerivationOutput {..}) =
     , rawMethodHashAlgo = flip (maybe "") mContentAddressing $ \(method, hashAlgo :=> _) ->
         buildMethodHashAlgo method $ Some hashAlgo
     , rawHash = fromMaybe "" $ mContentAddressing >>= \(_, _ :=> Comp1 hash') ->
-        encodeDigestWith NixBase32 <$> hash'
+        encodeDigestWith Base16 <$> hash'
     }
 
 buildMethodHashAlgo :: ContentAddressMethod -> Some HashAlgo -> Text

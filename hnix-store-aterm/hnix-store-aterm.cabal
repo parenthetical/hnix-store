@@ -28,6 +28,8 @@ extra-doc-files:
 Extra-Source-Files:
     tests/example0.drv
     tests/example1.drv
+    tests/example2.drv
+    tests/example3.drv
     upstream-libstore-data/derivation/bad-old-version-dyn-deps.drv
     upstream-libstore-data/derivation/bad-version.drv
     upstream-libstore-data/derivation/dyn-dep-derivation.drv
