@@ -1,13 +1,17 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module StorePathSpec where
 
-import Test.Hspec (Spec, describe)
+import Test.Hspec (Spec, describe, it, shouldBe)
 import Test.Hspec.QuickCheck (prop)
 import Test.Hspec.Nix (roundtrips)
+import Test.QuickCheck ((===), (.&&.))
 
 import System.Nix.Arbitrary ()
 import System.Nix.StorePath
 
 import Data.Attoparsec.Text qualified
+import Data.Text qualified
 
 spec :: Spec
 spec = do
@@ -39,3 +43,26 @@ spec = do
       roundtrips
         storePathBaseToText
         parseBasePathFromText
+
+  describe "sanitizeStorePathName" $ do
+    prop "makes a valid name that fits in the length" $
+      \maxLength string ->
+        let name = sanitizeStorePathName maxLength (Data.Text.pack string)
+        in mkStorePathName (unStorePathName name) === Right name
+           .&&. Data.Text.length (unStorePathName name) <= max 1 (min storePathNameMaxLength maxLength)
+
+    prop "keeps a valid name" $
+      \name ->
+        sanitizeStorePathName storePathNameMaxLength (unStorePathName name) === name
+
+    it "replaces each run of invalid characters with a dash" $
+      unStorePathName (sanitizeStorePathName storePathNameMaxLength "Foo'Bar Café 'é")
+        `shouldBe` "Foo-Bar-Caf-"
+
+    it "keeps the end of a long text and drops leading dots" $
+      unStorePathName (sanitizeStorePathName 5 "abcd.efgh")
+        `shouldBe` "efgh"
+
+    it "makes a name of text without valid characters" $
+      unStorePathName (sanitizeStorePathName storePathNameMaxLength "...")
+        `shouldBe` "unknown"

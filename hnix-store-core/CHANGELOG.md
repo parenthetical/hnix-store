@@ -1,5 +1,9 @@
 # [next](https://github.com/haskell-nix/hnix-store/compare/core-0.9.0.0...master) 2026-MM-DD
 
+* Additions:
+   * `validStorePathNameChar`, `storePathNameMaxLength` and `sanitizeStorePathName` in `System.Nix.StorePath`.
+     `sanitizeStorePathName` makes a valid name of at most a given length from any text, as nixpkgs' `lib.strings.sanitizeDerivationName` does.
+
 * Changes:
    * `parseSingleDerivedPath`, `singleDerivedPathToText`, `parseDerivedPath` and `derivedPathToText` use `^` between a derivation and its outputs, as Nix's `to_string` and `parse` do.
      The new `parseSingleDerivedPathLegacy`, `singleDerivedPathToTextLegacy`, `parseDerivedPathLegacy` and `derivedPathToTextLegacy` use `!`, as the daemon protocol does.

@@ -21,6 +21,9 @@ module System.Nix.StorePath
   , InvalidNameError(..)
   , mkStorePathName
   , parseNameText
+  , validStorePathNameChar
+  , storePathNameMaxLength
+  , sanitizeStorePathName
     -- * Reason why a path is not valid
   , InvalidPathError(..)
   , -- * Rendering out 'StorePath's
@@ -165,7 +168,7 @@ parseNameText n
     = Left EmptyName
   | Data.Text.head n == '.'
     = Left LeadingDot
-  | nLength > 211
+  | nLength > storePathNameMaxLength
     = Left $ NameTooLong nLength
   | not $ Data.Text.null invalidCharacters
     = Left $ InvalidCharacters invalidCharacters
@@ -174,6 +177,7 @@ parseNameText n
   invalidCharacters = Data.Text.filter (not . validStorePathNameChar) n
   nLength = Data.Text.length n
 
+-- | Whether a store path name or output name can have this character
 validStorePathNameChar :: Char -> Bool
 validStorePathNameChar c =
   any ($ c)
@@ -182,6 +186,34 @@ validStorePathNameChar c =
     , Data.Char.isDigit
     , (`elem` ("+-._?=" :: String))
     ]
+
+storePathNameMaxLength :: Int
+storePathNameMaxLength = 211
+
+-- | Make a valid store path name from any text, as nixpkgs'
+-- @lib.strings.sanitizeDerivationName@ does: replace each run of
+-- characters that a name can't have with @-@, keep the end of the
+-- text that fits in the given length, and drop leading dots. Text
+-- that leaves nothing becomes @unknown@.
+--
+-- The length is at most 'storePathNameMaxLength'. A smaller one leaves
+-- room for what Nix adds to a derivation's name: @.drv@, and an
+-- output's name for the outputs other than @out@.
+sanitizeStorePathName :: Int -> Text -> StorePathName
+sanitizeStorePathName maxLength text =
+  StorePathName
+  $ if Data.Text.null name
+    then Data.Text.take lengthCap "unknown"
+    else name
+ where
+  lengthCap = max 1 (min storePathNameMaxLength maxLength)
+  name =
+    Data.Text.dropWhile (== '.')
+    . Data.Text.takeEnd lengthCap
+    . Data.Text.concat
+    . fmap (\run -> if Data.Text.all validStorePathNameChar run then run else "-")
+    . Data.Text.groupBy (\a b -> validStorePathNameChar a == validStorePathNameChar b)
+    $ text
 
 -- | Copied from @RawFilePath@ in the @unix@ package, duplicated here
 -- to avoid the dependency.
