@@ -22,6 +22,8 @@ module System.Nix.Derivation.Traditional
     , TraditionalDerivationInputs(..)
     , inputsToTraditional
     , inputsFromTraditional
+    , DerivationATermVersion(..)
+    , derivationInputsATermVersion
     ) where
 
 
@@ -37,7 +39,7 @@ import Data.Set (Set)
 import Data.Some
 import Data.Text (Text)
 import Data.Text qualified
-import Data.These (These(..))
+import Data.These (These(..), fromThese)
 import Data.Vector (Vector)
 import Data.Traversable (for)
 import GHC.Generics (Generic, (:.:)(..))
@@ -199,3 +201,25 @@ inputsFromTraditional TraditionalDerivationInputs { traditionalSrcs, traditional
   , drvs = DerivedPathMap $ Data.Map.Monoidal.fromList $
       fmap (fmap ChildNode . fmap This) (Data.Map.toList traditionalDrvs)
   }
+
+----------------
+
+-- | The versions of the ATerm format.
+data DerivationATermVersion
+    = DerivationATermVersion_Traditional
+    -- ^ @Derive(...)@, which can't hold inputs that are outputs of
+    -- dynamic derivations
+    | DerivationATermVersion_DynamicDerivations
+    -- ^ @DrvWithVersion("xp-dyn-drv",...)@, which can
+    deriving (Bounded, Enum, Eq, Generic, Ord, Show)
+
+instance NFData DerivationATermVersion
+
+-- | The oldest version that can hold these inputs, which is the version
+-- that Nix writes.
+derivationInputsATermVersion :: DerivationInputs -> DerivationATermVersion
+derivationInputsATermVersion inputs
+  | any hasDynamicInputs (unDerivedPathMap (drvs inputs)) = DerivationATermVersion_DynamicDerivations
+  | otherwise = DerivationATermVersion_Traditional
+  where
+    hasDynamicInputs (ChildNode node) = not $ null $ snd $ fromThese mempty mempty node

@@ -15,7 +15,7 @@ import Prelude hiding (FilePath, either)
 
 import Data.Attoparsec.Text.Lazy qualified
 import Data.Text.Lazy.Builder qualified
-import Test.QuickCheck (Arbitrary)
+import Test.QuickCheck (Arbitrary, Property, (===))
 import Test.QuickCheck.Property (failed, succeeded, Result(..))
 import Test.QuickCheck.Arbitrary.Generic (Arg, GenericArbitrary(..))
 
@@ -62,3 +62,21 @@ prop_roundtrip storeDir derivation0 =
         Data.Attoparsec.Text.Lazy.eitherResult result
 
     expected = Right derivation0
+
+prop_roundtripDerivation
+  :: StoreDir
+  -> TraditionalDerivation'
+     DerivationInputs
+     FreeformDerivationOutputs
+  -> Property
+prop_roundtripDerivation storeDir derivation0 =
+    Data.Attoparsec.Text.Lazy.eitherResult result === Right derivation0
+  where
+    text =
+        Data.Text.Lazy.Builder.toLazyText
+          (System.Nix.Derivation.ATerm.buildDerivation storeDir derivation0)
+
+    result =
+        Data.Attoparsec.Text.Lazy.parse
+          (System.Nix.Derivation.ATerm.parseDerivation storeDir)
+          text

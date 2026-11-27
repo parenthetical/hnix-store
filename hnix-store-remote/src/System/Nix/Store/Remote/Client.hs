@@ -167,7 +167,7 @@ buildDerivation sp mode = do
     $ Data.Text.IO.readFile
     $ System.Nix.StorePath.storePathToFilePath sd sp
   case Data.Attoparsec.Text.parseOnly
-    (System.Nix.Derivation.ATerm.parseTraditionalDerivation sd) drvContents of
+    (System.Nix.Derivation.ATerm.parseDerivation sd) drvContents of
       Left e -> throwError $ RemoteStoreError_DerivationParse e
       Right drv -> do
         let name = System.Nix.StorePath.storePathName sp
@@ -181,7 +181,7 @@ buildDerivation sp mode = do
               drv
                 { System.Nix.Derivation.Traditional.anonOutputs = outputs
                 , System.Nix.Derivation.Traditional.anonInputs =
-                    System.Nix.Derivation.Traditional.traditionalSrcs
+                    System.Nix.Derivation.srcs
                       (System.Nix.Derivation.Traditional.anonInputs drv)
                 }
         doReq (BuildDerivation sp drv' mode)

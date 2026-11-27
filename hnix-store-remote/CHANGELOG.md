@@ -1,5 +1,8 @@
 # [next](https://github.com/haskell-nix/hnix-store/compare/remote-0.8.0.0...master) 2026-MM-DD
 
+* Changes:
+   * `buildDerivation` reads derivations whose inputs are outputs of dynamic derivations
+
 # [0.8.0.0](https://github.com/haskell-nix/hnix-store/compare/remote-0.7.0.0...remote-0.8.0.0) 2026-10-21
 
 * Changes:

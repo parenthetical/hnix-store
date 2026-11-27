@@ -42,10 +42,26 @@ in
         haskellLib.compose.buildFromSdist
       ];
   hnix-store-aterm =
+    let
+      # Include the derivations from upstream Nix's test data that we
+      # need for testing.
+      src = lib.fileset.toSource {
+        root = ./.;
+        fileset = lib.fileset.unions [
+          ./hnix-store-aterm
+          (lib.fileset.fileFilter (file: file.hasExt "drv") ./upstream-nix/src/libstore-tests/data/derivation)
+        ];
+      };
+    in
     lib.pipe
       (hself.callCabal2nix "hnix-store-aterm" ./hnix-store-aterm/hnix-store-aterm.cabal {})
       [
-        (drv: drv.overrideAttrs (old: { src = ./hnix-store-aterm; }))
+        (drv: drv.overrideAttrs (old: {
+          inherit src;
+          postUnpack = ''
+            sourceRoot+=/hnix-store-aterm
+          '';
+        }))
         haskellLib.compose.buildFromSdist
       ];
   hnix-store-json =

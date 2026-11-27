@@ -81,10 +81,16 @@ module System.Nix.Derivation.ATerm
       TraditionalDerivation'(..)
     , FreeformDerivationOutput(..)
     , FreeformDerivationOutputs
+    , DerivationInputs(..)
     , TraditionalDerivationInputs(..)
     , DerivedPathMap(..)
+    , DerivationATermVersion(..)
+    , derivationInputsATermVersion
 
       -- * Parse derivations
+    , parseDerivation
+    , parseDerivationWith
+    , parseDerivationInputs
     , parseTraditionalDerivation
     , parseTraditionalDerivationWith
     , parseFreeformDerivationOutput
@@ -92,6 +98,9 @@ module System.Nix.Derivation.ATerm
     , textParser
 
       -- * Render derivations
+    , buildDerivation
+    , buildDerivationWith
+    , buildDerivationInputs
     , buildTraditionalDerivation
     , buildTraditionalDerivationWith
     , buildFreeformDerivationOutput

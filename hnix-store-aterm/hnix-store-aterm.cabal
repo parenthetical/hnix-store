@@ -28,6 +28,10 @@ extra-doc-files:
 Extra-Source-Files:
     tests/example0.drv
     tests/example1.drv
+    upstream-libstore-data/derivation/bad-old-version-dyn-deps.drv
+    upstream-libstore-data/derivation/bad-version.drv
+    upstream-libstore-data/derivation/dyn-dep-derivation.drv
+    upstream-libstore-data/derivation/simple-derivation.drv
 Source-Repository head
     Type: git
     Location: https://github.com/haskell-nix/hnix-store
@@ -82,22 +86,26 @@ Test-Suite aterm
     Other-Modules:
         Derivation
         Property
+        UpstreamDerivation
     GHC-Options: -Wall
     Build-Tool-Depends:
         tasty-discover:tasty-discover
     Build-Depends:
         base            >= 4.6.0.0  && < 5   ,
         attoparsec      >= 0.12.0.0 && < 0.15,
+        containers                            ,
         data-default-class                    ,
         generic-arbitrary              < 1.1 ,
         hnix-store-core                       ,
         hnix-store-aterm                      ,
         hnix-store-tests                      ,
+        monoidal-containers                   ,
         QuickCheck                     < 2.20,
         tasty                                 ,
         tasty-golden                          ,
         tasty-quickcheck                      ,
-        text
+        text                                  ,
+        these
 
 Benchmark benchmark
     Import: commons

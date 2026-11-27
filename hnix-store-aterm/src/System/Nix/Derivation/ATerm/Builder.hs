@@ -6,7 +6,10 @@
 
 module System.Nix.Derivation.ATerm.Builder
     ( -- * Builder
-      buildTraditionalDerivation
+      buildDerivation
+    , buildDerivationWith
+    , buildDerivationInputs
+    , buildTraditionalDerivation
     , buildTraditionalDerivationWith
     , buildFreeformDerivationOutput
     , buildTraditionalDerivationInputs
@@ -16,9 +19,13 @@ import Data.Map (Map)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Text.Lazy.Builder (Builder)
+import Data.These (fromThese)
 import Data.Vector (Vector)
 import System.Nix.Derivation
-    ( FreeformDerivationOutput(..)
+    ( ChildNode(..)
+    , DerivationInputs(..)
+    , DerivedPathMap(..)
+    , FreeformDerivationOutput(..)
     , FreeformDerivationOutputs
     )
 import System.Nix.Derivation.Traditional
@@ -26,12 +33,43 @@ import System.Nix.StorePath
 import System.Nix.OutputName
 
 import Data.Map qualified
+import Data.Map.Monoidal qualified
 import Data.Set qualified
 import Data.Text qualified
 import Data.Text.Lazy.Builder qualified
 import Data.Vector qualified
 
--- | Render a derivation as a `Builder`
+-- | Render a derivation as a `Builder`, in the oldest version of the
+-- format that can hold its inputs, as Nix does
+buildDerivation
+    :: StoreDir
+    -> TraditionalDerivation' DerivationInputs FreeformDerivationOutputs
+    -> Builder
+buildDerivation sd drv =
+    buildDerivationWith
+        (derivationInputsATermVersion (anonInputs drv))
+        (buildDerivationInputs sd)
+        (\_ -> buildFreeformDerivationOutput sd)
+        drv
+
+-- | Render a derivation as a `Builder` in the given version of the
+-- format, using custom renderer for derivation inputs/outputs
+buildDerivationWith
+    :: DerivationATermVersion
+    -> (drvInputs -> Builder)
+    -> (OutputName -> drvOutput -> Builder)
+    -> TraditionalDerivation' drvInputs (Map OutputName drvOutput)
+    -> Builder
+buildDerivationWith version drvInputs drvOutput drv =
+        versionHeader
+    <>  buildDerivationFields drvInputs drvOutput drv
+  where
+    versionHeader = case version of
+        DerivationATermVersion_Traditional -> "Derive("
+        DerivationATermVersion_DynamicDerivations -> "DrvWithVersion(" <> string "xp-dyn-drv" <> ","
+
+-- | Render a derivation as a `Builder` in the traditional version of
+-- the format
 buildTraditionalDerivation
     :: StoreDir
     -> TraditionalDerivation' TraditionalDerivationInputs FreeformDerivationOutputs
@@ -41,16 +79,24 @@ buildTraditionalDerivation sd =
         (buildTraditionalDerivationInputs sd)
         (\_ -> buildFreeformDerivationOutput sd)
 
--- | Render a derivation as a `Builder` using custom
--- renderer for storePaths, texts, outputNames and derivation inputs/outputs
+-- | Render a derivation as a `Builder` in the traditional version of
+-- the format, using custom renderer for derivation inputs/outputs
 buildTraditionalDerivationWith
     :: (drvInputs -> Builder)
     -> (OutputName -> drvOutput -> Builder)
     -> TraditionalDerivation' drvInputs (Map OutputName drvOutput)
     -> Builder
-buildTraditionalDerivationWith drvInputs drvOutput (TraditionalDerivation {..}) =
-        "Derive("
-    <>  mapOf keyValue0 anonOutputs
+buildTraditionalDerivationWith = buildDerivationWith DerivationATermVersion_Traditional
+
+-- | Render the fields that follow the version header, and the closing
+-- parenthesis
+buildDerivationFields
+    :: (drvInputs -> Builder)
+    -> (OutputName -> drvOutput -> Builder)
+    -> TraditionalDerivation' drvInputs (Map OutputName drvOutput)
+    -> Builder
+buildDerivationFields drvInputs drvOutput (TraditionalDerivation {..}) =
+        mapOf keyValue0 anonOutputs
     <>  ","
     <>  drvInputs anonInputs
     <>  ","
@@ -109,6 +155,43 @@ buildTraditionalDerivationInputs storeDir (TraditionalDerivationInputs {..}) =
         <>  storePath storeDir key
         <>  ","
         <>  setOf buildOutputName value
+        <>  ")"
+
+-- | Render @DerivationInputs@ as a `Builder`. Inputs that are outputs
+-- of dynamic derivations need the
+-- 'DerivationATermVersion_DynamicDerivations' version of the format.
+buildDerivationInputs
+    :: StoreDir
+    -> DerivationInputs
+    -> Builder
+buildDerivationInputs storeDir (DerivationInputs {..}) =
+        listOf input (Data.Map.Monoidal.toList (unDerivedPathMap drvs))
+    <>  ","
+    <>  setOf (storePath storeDir) srcs
+  where
+    input (drvPath, node) =
+            "("
+        <>  storePath storeDir drvPath
+        <>  ","
+        <>  childNode node
+        <>  ")"
+
+    childNode (ChildNode node)
+        | null children = setOf buildOutputName outputNames
+        | otherwise =
+                "("
+            <>  setOf buildOutputName outputNames
+            <>  ","
+            <>  listOf child (Data.Map.Monoidal.toList children)
+            <>  ")"
+      where
+        (outputNames, children) = fromThese mempty mempty node
+
+    child (outputName, node) =
+            "("
+        <>  buildOutputName outputName
+        <>  ","
+        <>  childNode node
         <>  ")"
 
 mapOf :: ((k, v) -> Builder) -> Map k v -> Builder

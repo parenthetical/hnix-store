@@ -9,27 +9,36 @@
 
 module System.Nix.Derivation.ATerm.Parser
     ( -- * Parser
-      parseTraditionalDerivation
+      parseDerivation
+    , parseDerivationWith
+    , parseDerivationInputs
+    , parseTraditionalDerivation
     , parseTraditionalDerivationWith
     , parseFreeformDerivationOutput
     , parseTraditionalDerivationInputs
     , textParser
     ) where
 
+import Control.Applicative ((<|>))
 import Data.Attoparsec.Text qualified
 import Data.Attoparsec.Text.Lazy (Parser)
 import Data.Attoparsec.Text.Lazy qualified
 import Data.Map (Map)
 import Data.Map qualified
+import Data.Map.Monoidal (MonoidalMap(..))
 import Data.Set (Set)
 import Data.Set qualified
 import Data.Text (Text)
 import Data.Text qualified
+import Data.These (These(..))
 import Data.Vector (Vector)
 import Data.Vector qualified
 
 import System.Nix.Derivation
-    ( FreeformDerivationOutput(..)
+    ( ChildNode(..)
+    , DerivationInputs(..)
+    , DerivedPathMap(..)
+    , FreeformDerivationOutput(..)
     , FreeformDerivationOutputs
     )
 import System.Nix.Derivation.Traditional
@@ -43,7 +52,40 @@ listOf element = do
     "]"
     pure es
 
--- | Parse a derivation
+-- | Parse a derivation in any version of the format
+parseDerivation
+  :: StoreDir
+  -> Parser (TraditionalDerivation' DerivationInputs FreeformDerivationOutputs)
+parseDerivation sd =
+    parseDerivationWith
+        (parseDerivationInputs sd)
+        (\_ -> parseFreeformDerivationOutput sd)
+
+-- | Parse a derivation in any version of the format using custom
+-- parsers for derivation inputs/outputs. The parser of the inputs gets
+-- the version from the derivation's header.
+parseDerivationWith
+    :: (DerivationATermVersion -> Parser drvInputs)
+    -> (OutputName -> Parser drvOutput)
+    -> Parser (TraditionalDerivation' drvInputs (Map OutputName drvOutput))
+parseDerivationWith parseInputs parseOutput = do
+    version <- traditionalHeader <|> versionedHeader
+    parseDerivationFields (parseInputs version) parseOutput
+  where
+    traditionalHeader = do
+        "Derive("
+        pure DerivationATermVersion_Traditional
+
+    versionedHeader = do
+        "DrvWithVersion("
+        versionName <- textParser
+        version <- case versionName of
+            "xp-dyn-drv" -> pure DerivationATermVersion_DynamicDerivations
+            _ -> fail $ "unknown derivation ATerm format version " <> show versionName
+        ","
+        pure version
+
+-- | Parse a derivation in the traditional version of the format
 parseTraditionalDerivation
   :: StoreDir
   -> Parser (TraditionalDerivation' TraditionalDerivationInputs FreeformDerivationOutputs)
@@ -52,15 +94,23 @@ parseTraditionalDerivation sd =
         (parseTraditionalDerivationInputs sd)
         (\_ -> parseFreeformDerivationOutput sd)
 
--- | Parse a derivation using custom
--- parsers for filepaths, texts, outputNames and derivation inputs/outputs
+-- | Parse a derivation in the traditional version of the format using
+-- custom parsers for derivation inputs/outputs
 parseTraditionalDerivationWith
     :: Parser drvInputs
     -> (OutputName -> Parser drvOutput)
     -> Parser (TraditionalDerivation' drvInputs (Map OutputName drvOutput))
 parseTraditionalDerivationWith parseInputs parseOutput = do
     "Derive("
+    parseDerivationFields parseInputs parseOutput
 
+-- | Parse the fields that follow the version header, and the closing
+-- parenthesis
+parseDerivationFields
+    :: Parser drvInputs
+    -> (OutputName -> Parser drvOutput)
+    -> Parser (TraditionalDerivation' drvInputs (Map OutputName drvOutput))
+parseDerivationFields parseInputs parseOutput = do
     let keyValue0 = do
             "("
             key <- outputNameParser
@@ -126,6 +176,47 @@ parseTraditionalDerivationInputs sd = do
 
     traditionalSrcs <- setOf $ storePathParser sd
     pure TraditionalDerivationInputs {..}
+
+-- | Parse @DerivationInputs@ in the given version of the format. Only
+-- the 'DerivationATermVersion_DynamicDerivations' version has inputs
+-- that are outputs of dynamic derivations.
+parseDerivationInputs :: StoreDir -> DerivationATermVersion -> Parser DerivationInputs
+parseDerivationInputs sd version = do
+    drvs <- fmap (DerivedPathMap . MonoidalMap) $ mapOf $ do
+         "("
+         key <- storePathParser sd
+         ","
+         node <- childNodeParser
+         ")"
+         pure (key, node)
+
+    ","
+
+    srcs <- setOf $ storePathParser sd
+    pure DerivationInputs {..}
+  where
+    childNodeParser = case version of
+        DerivationATermVersion_Traditional -> outputNamesNode
+        DerivationATermVersion_DynamicDerivations -> outputNamesNode <|> nestedNode
+
+    outputNamesNode = ChildNode . This <$> setOf outputNameParser
+
+    nestedNode = do
+        "("
+        outputNames <- setOf outputNameParser
+        ","
+        children <- mapOf $ do
+            "("
+            outputName <- outputNameParser
+            ","
+            child <- childNodeParser
+            ")"
+            pure (outputName, child)
+        ")"
+        pure $ ChildNode $
+            if | Data.Map.null children -> This outputNames
+               | Data.Set.null outputNames -> That (MonoidalMap children)
+               | otherwise -> These outputNames (MonoidalMap children)
 
 textParser :: Parser Text
 textParser = do
