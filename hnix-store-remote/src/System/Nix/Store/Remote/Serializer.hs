@@ -765,11 +765,11 @@ derivedPathNew
 derivedPathNew storeDir = Serializer
   { getS = do
       p <- getS text
-      case System.Nix.DerivedPath.parseDerivedPath storeDir p of
+      case System.Nix.DerivedPath.parseDerivedPathLegacy storeDir p of
         Left err -> throwError $ SError_DerivedPath err
         Right x -> pure x
   , putS = \d -> do
-      putS text (System.Nix.DerivedPath.derivedPathToText storeDir d)
+      putS text (System.Nix.DerivedPath.derivedPathToTextLegacy storeDir d)
   }
 
 derivedPath
