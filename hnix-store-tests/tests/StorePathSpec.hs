@@ -44,6 +44,17 @@ spec = do
         storePathBaseToText
         parseBasePathFromText
 
+  describe "parsePathAndSubpathFromText" $ do
+    prop "splits off the path inside a store path" $
+      \storeDir storePath segments ->
+        let subpath = foldMap (("/" <>) . unStorePathName) (segments :: [StorePathName])
+        in parsePathAndSubpathFromText storeDir (storePathToText storeDir storePath <> subpath)
+             === Right (storePath, subpath)
+
+    it "rejects a path outside the store" $
+      parsePathAndSubpathFromText (StoreDir "/nix/store") "/usr/bin/ld"
+        `shouldBe` Left (RootDirMismatch (StoreDir "/nix/store") (StoreDir "/usr/bin"))
+
   describe "sanitizeStorePathName" $ do
     prop "makes a valid name that fits in the length" $
       \maxLength string ->

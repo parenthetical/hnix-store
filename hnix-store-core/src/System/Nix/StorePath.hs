@@ -39,6 +39,7 @@ module System.Nix.StorePath
   , parseBasePathFromText
   , parsePath
   , parsePathFromText
+  , parsePathAndSubpathFromText
   , pathParser
     -- * Utilities for tests
   , unsafeMakeStorePath
@@ -351,6 +352,32 @@ parsePathFromText
   -> Text
   -> Either InvalidPathError StorePath
 parsePathFromText sd = parsePath' sd . Data.Text.unpack
+
+-- | Parse a path in the store into the `StorePath` and the rest of the
+-- path, which is empty or starts with @/@, as Nix's @toStorePath@ does.
+parsePathAndSubpathFromText
+  :: StoreDir -- ^ expected @StoreDir@
+  -> Text
+  -> Either InvalidPathError (StorePath, Text)
+parsePathAndSubpathFromText expectedRoot path =
+  case Data.Text.stripPrefix (expectedRootT <> "/") path of
+    Nothing ->
+      Left $ RootDirMismatch
+        { rdMismatchExpected = expectedRoot
+        , rdMismatchGot =
+            StoreDir
+            . Data.ByteString.Char8.pack
+            . System.FilePath.takeDirectory
+            $ Data.Text.unpack path
+        }
+    Just inStore ->
+      let (baseName, subpath) = Data.Text.breakOn "/" inStore
+      in (\storePath -> (storePath, subpath)) <$> parseBasePathFromText baseName
+ where
+  expectedRootT =
+      Data.Text.pack
+    . Data.ByteString.Char8.unpack
+    $ unStoreDir expectedRoot
 
 -- | Attoparsec @StorePath@ @Parser@
 pathParser :: StoreDir -> Parser StorePath
