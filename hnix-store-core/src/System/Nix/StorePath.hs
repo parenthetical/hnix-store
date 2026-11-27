@@ -143,7 +143,7 @@ mkStorePathHashPart =
 data InvalidNameError
   = EmptyName
   | NameTooLong Int
-  | LeadingDot
+  | FirstComponentIsDotOrDotDot
   | InvalidCharacters Text
   deriving (Eq, Generic, Hashable, Ord, Show)
 
@@ -167,8 +167,8 @@ parseNameText :: Text -> Either InvalidNameError Text
 parseNameText n
   | n == ""
     = Left EmptyName
-  | Data.Text.head n == '.'
-    = Left LeadingDot
+  | firstComponent == "." || firstComponent == ".."
+    = Left FirstComponentIsDotOrDotDot
   | nLength > storePathNameMaxLength
     = Left $ NameTooLong nLength
   | not $ Data.Text.null invalidCharacters
@@ -177,6 +177,7 @@ parseNameText n
  where
   invalidCharacters = Data.Text.filter (not . validStorePathNameChar) n
   nLength = Data.Text.length n
+  firstComponent = Data.Text.takeWhile (/= '-') n
 
 -- | Whether a store path name or output name can have this character
 validStorePathNameChar :: Char -> Bool
@@ -404,8 +405,8 @@ pathParser expectedRoot = do
 
   c0 <-
     Data.Attoparsec.Text.Lazy.satisfy
-      (\c -> c /= '.' && validStorePathNameChar c)
-      <?> "Leading path name character is a dot or invalid character"
+      validStorePathNameChar
+      <?> "Leading path name character is invalid"
 
   rest <-
     Data.Attoparsec.Text.Lazy.takeWhile

@@ -7,6 +7,8 @@
    * `decodeDigestByLength` in `System.Nix.Hash`, which decodes base 16, Nix's base 32 or base 64 and tells them apart by length, as Nix's `Hash::parseNonSRIUnprefixed` does
 
 * Changes:
+   * Store path names and output names can start with a dot, as in Nix, as long as their first dash-separated component isn't `.` or `..`.
+     `InvalidNameError`'s `LeadingDot` becomes `FirstComponentIsDotOrDotDot`.
    * `parseSingleDerivedPath`, `singleDerivedPathToText`, `parseDerivedPath` and `derivedPathToText` use `^` between a derivation and its outputs, as Nix's `to_string` and `parse` do.
      The new `parseSingleDerivedPathLegacy`, `singleDerivedPathToTextLegacy`, `parseDerivedPathLegacy` and `derivedPathToTextLegacy` use `!`, as the daemon protocol does.
 

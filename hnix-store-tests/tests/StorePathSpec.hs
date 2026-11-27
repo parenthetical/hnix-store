@@ -44,6 +44,14 @@ spec = do
         storePathBaseToText
         parseBasePathFromText
 
+  describe "pathParser" $
+    it "parses a name with a leading dot" $
+      fmap (unStorePathName . storePathName)
+        (Data.Attoparsec.Text.parseOnly
+          (pathParser (StoreDir "/nix/store"))
+          "/nix/store/g1w7hy3qg1w7hy3qg1w7hy3qg1w7hy3q-.hidden")
+        `shouldBe` Right ".hidden"
+
   describe "parsePathAndSubpathFromText" $ do
     prop "splits off the path inside a store path" $
       \storeDir storePath segments ->

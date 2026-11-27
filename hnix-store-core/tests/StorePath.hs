@@ -26,10 +26,15 @@ spec_storePath = do
       `shouldBe`
       Left (NameTooLong 256)
 
-    it "fails on leading dot" $
+    it "parses a leading dot" $
       parseNameText ".ab"
       `shouldBe`
-      Left LeadingDot
+      pure ".ab"
+
+    it "fails on . or .. as the first dash-separated component" $
+      fmap parseNameText [".", "..", ".-ab", "..-ab"]
+      `shouldBe`
+      replicate 4 (Left FirstComponentIsDotOrDotDot)
 
     it "fails on invalid characters" $
       parseNameText "ab!cd#@"
