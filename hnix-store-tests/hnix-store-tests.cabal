@@ -55,6 +55,7 @@ library
     , System.Nix.Arbitrary.Store.Types
     , System.Nix.Arbitrary.StorePath
     , System.Nix.Arbitrary.StorePath.Metadata
+    , System.Nix.Arbitrary.StringContext
     , System.Nix.Arbitrary.UTCTime
     , Test.Hspec.Nix
   build-depends:
@@ -87,6 +88,7 @@ test-suite props
       RealisationSpec
       StorePathSpec
       SignatureSpec
+      StringContextSpec
   hs-source-dirs:
     tests
   build-tool-depends:
@@ -96,6 +98,8 @@ test-suite props
     , hnix-store-core
     , hnix-store-tests
     , attoparsec
+    , containers
     , text
     , hspec
     , QuickCheck
+    , vector

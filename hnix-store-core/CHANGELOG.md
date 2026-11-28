@@ -4,6 +4,7 @@
    * `validStorePathNameChar`, `storePathNameMaxLength` and `sanitizeStorePathName` in `System.Nix.StorePath`.
      `sanitizeStorePathName` makes a valid name of at most a given length from any text, as nixpkgs' `lib.strings.sanitizeDerivationName` does.
    * `parsePathAndSubpathFromText` in `System.Nix.StorePath`, which splits a path in the store into the store path and the rest, as Nix's `toStorePath` does
+   * `System.Nix.StringContext`: `StringContextElem`, as Nix's `NixStringContextElem`, with Nix's text form; `ContextText`, text with the context of the store paths and placeholders in it; and `derivationFromContext`, which gives a derivation the inputs of its strings' context, as Nix's `derivation` builtin does
    * `decodeDigestByLength` in `System.Nix.Hash`, which decodes base 16, Nix's base 32 or base 64 and tells them apart by length, as Nix's `Hash::parseNonSRIUnprefixed` does
 
 * Changes:
